@@ -1,0 +1,4 @@
+.vscode
+*.dll
+*.a
+*.o

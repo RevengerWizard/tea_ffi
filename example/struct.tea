@@ -1,0 +1,41 @@
+import ffi
+
+ffi.cdef(```
+typedef struct {
+   int x;
+   int y;
+   const char* name;
+} Point;
+```
+)
+
+const p = ffi.cnew("Point")
+p.x = 10
+p.y = 20
+p.name = "origin"
+print(p)
+
+const p2 = ffi.cnew("Point", {
+    x = 30,
+    y = 40,
+    name = "point2"
+})
+print(p2)
+
+print("p1: x=%d, y=%d, name=%s".format(p.x, p.y, ffi.string(p.name)))
+print("p2: x=%d, y=%d, name=%s".format(p2.x, p2.y, ffi.string(p2.name)))
+
+const points = ffi.cnew("Point[3]")
+for(var i = 0; i < 3; i++)
+{
+    points[i].x = i * 10
+    points[i].y = i * 10
+    points[i].name = "point" + tostring(i)
+}
+
+print("\nArray of points:")
+for(var i = 0; i < 3; i++)
+{
+    print("points[%d]: x=%d, y=%d, name=%s".format( 
+        i, points[i].x, points[i].y, ffi.string(points[i].name)))
+}

@@ -1,0 +1,20 @@
+import ffi
+
+const arr1 = ffi.cnew("int[10]")
+for(var i = 0; i < 10; i++)
+{
+    arr1[i] = i * 2
+    print("arr1[${i}] = ${arr1[i]}")
+}
+
+const arr2 = ffi.cnew("int[10]", [10, 20, 30, 40, 50, 60, 70, 80, 90, 100])
+for(var i = 0; i < 10; i++)
+{
+    print("arr2[${i}] = ${arr2[i]}")
+}
+
+for(var i = 0; i < 10; i++)
+{
+    arr2[i] *= 2
+    print("arr2[${i}] after doubling = ${arr2[i]}")
+}

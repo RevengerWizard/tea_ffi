@@ -1,0 +1,13 @@
+import os, ffi
+
+ffi.cdef("int printf(const char* fmt, ...);")
+
+const clib = os.name == "windows" ? ffi.load("msvcrt") : ffi.C
+
+clib.printf("Hello, World!\n")
+clib.printf("Hello, %s! Number: %d\n", "everybody", 123)
+
+clib.printf("Integer: %d\n", 42)
+clib.printf("Float: %.2f\n", 3.14159)
+clib.printf("String: %s\n", "test")
+clib.printf("Character: %c\n", 65)
