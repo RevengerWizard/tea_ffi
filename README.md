@@ -7,9 +7,6 @@
 [cffi-lua]: https://github.com/q66/cffi-lua
 [lua-ffi]: https://github.com/zhaojh329/lua-ffi
 
-> [!WARNING]
-> This is work-in progress. Due to current constraints in Teascript and C API, FFI resources aren't freed correctly
-
 tea_ffi is a portable C FFI for [Teascript] based on [libffi] and an API design similar to that of [LuaJIT], but written using the Teascript C API.
 
 It aims to be the standard FFI module interface to C and other future Teascript implementations.

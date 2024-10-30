@@ -1241,6 +1241,16 @@ static void ffi_cdata_call(tea_State* T)
     tea_error(T, "unsupported return type '%s'", ctype_name(rtype));
 }
 
+static void ffi_cdata_gc(tea_State* T)
+{
+    cdata* cd = tea_check_udata(T, 0, CDATA_MT);
+
+    tea_push_pointer(T, cd);
+    tea_delete_field(T, TEA_REGISTRY_INDEX);
+
+    tea_push_nil(T);
+}
+
 static const tea_Methods cdata_methods[] = {
     { "==", "static", ffi_cdata_eq, 2, 0 },
     { "call", "method", ffi_cdata_call, TEA_VARG, 0 },
@@ -1249,6 +1259,7 @@ static const tea_Methods cdata_methods[] = {
     { "getattr", "method", ffi_cdata_getattr, 2, 0 },
     { "setattr", "method", ffi_cdata_setattr, 3, 0 },
     { "tostring", "method", ffi_cdata_tostring, 1, 0 },
+    { "gc", "method", ffi_cdata_gc, 1, 0 },
     { NULL, NULL }
 };
 
@@ -1261,8 +1272,26 @@ static void ffi_ctype_tostring(tea_State* T)
     tea_concat(T, 3);
 }
 
+static void ffi_ctype_gc(tea_State* T)
+{
+    ctype* ct = tea_check_udata(T, 0, CTYPE_MT);
+    int type = ct->type;
+
+    if(type == CTYPE_RECORD && ct->rc->anonymous)
+    {
+        int i;
+        for(i = 0; i < ct->rc->nfield; i++)
+            free(ct->rc->fields[i]);
+
+        free(ct->rc);
+    }
+
+    tea_push_nil(T);
+}
+
 static const tea_Methods ctype_methods[] = {
     { "tostring", "method", ffi_ctype_tostring, 1, 0 },
+    { "gc", "method", ffi_ctype_gc, 1, 0 },
     { NULL, NULL }
 };
 
@@ -1389,9 +1418,29 @@ static void ffi_clib_tostring(tea_State* T)
 #endif
 }
 
+static void ffi_clib_gc(tea_State* T)
+{
+    clib* lib = tea_check_udata(T, 0, CLIB_MT);
+    void* h = lib->h;
+
+#ifdef _WIN32
+    if(h != GetModuleHandle(NULL))
+        FreeLibrary(h);
+#else
+    if(h != RTLD_DEFAULT)
+        dlclose(h);
+#endif
+
+    tea_push_pointer(T, lib);
+    tea_delete_field(T, TEA_REGISTRY_INDEX);
+    
+    tea_push_nil(T);
+}
+
 static const tea_Methods clib_methods[] = {
     { "getattr", "method", ffi_clib_getattr, 2, 0 },
     { "tostring", "method", ffi_clib_tostring, 1, 0 },
+    { "gc", "method", ffi_clib_gc, 1, 0 },
     { NULL, NULL }
 };
 
