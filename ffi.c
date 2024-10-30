@@ -99,7 +99,6 @@ typedef struct crecord_field
 typedef struct crecord
 {
     ffi_type ft;
-    int mt_ref;
     uint8_t mflags;
     uint8_t nfield;
     uint8_t is_union;
@@ -447,7 +446,7 @@ static const char* cstruct_lookup_name(tea_State* T, crecord* st)
 
 static cdata* cdata_new(tea_State* T, ctype* ct, void* ptr)
 {
-    cdata* cd = tea_new_udata(T, sizeof(cdata) + (ptr ? 0 : ctype_sizeof(ct)), CDATA_MT);
+    cdata* cd = tea_new_udatav(T, sizeof(cdata) + (ptr ? 0 : ctype_sizeof(ct)), 1, CDATA_MT);
     cd->ptr = ptr;
     cd->ct = ct;
 
@@ -1036,7 +1035,7 @@ static void cdata_attr_common(tea_State* T, bool to)
         break;
     }
     __ctype_tostring(T, cd->ct);
-    tea_error(T, "cannot get attribyte of ctype '%s'", tea_get_string(T, -1));
+    tea_error(T, "cannot get attribute of ctype '%s'", tea_get_string(T, -1));
 }
 
 static void ffi_cdata_getattr(tea_State* T)
@@ -1244,6 +1243,14 @@ static void ffi_cdata_call(tea_State* T)
 static void ffi_cdata_gc(tea_State* T)
 {
     cdata* cd = tea_check_udata(T, 0, CDATA_MT);
+
+    tea_get_udvalue(T, 0, 0);
+    if(!tea_is_nil(T, -1))
+    {
+        tea_push_value(T, 0);
+        tea_pcall(T, 1);
+        tea_pop(T, 1);
+    }
 
     tea_push_pointer(T, cd);
     tea_delete_field(T, TEA_REGISTRY_INDEX);
@@ -2252,6 +2259,12 @@ static void ffi_addressof(tea_State* T)
     cdata_ptr_set(cdata_new(T, ct, NULL), cdata_ptr(cd));
 }
 
+static void ffi_gc(tea_State* T)
+{
+    tea_check_udata(T, 0, CDATA_MT);
+    tea_set_udvalue(T, 0, 0);
+}
+
 static void ffi_tonumber(tea_State* T)
 {
     cdata* cd = tea_check_udata(T, 0, CDATA_MT);
@@ -2332,18 +2345,27 @@ converr:
 static void ffi_copy(tea_State* T)
 {
     cdata* cd = tea_check_udata(T, 0, CDATA_MT);
-    void* dst = cdata_ptr(cd);
+    void* dst = (cdata_type(cd) == CTYPE_PTR) ? cdata_ptr_ptr(cd) : cdata_ptr(cd);
     const void* src;
     size_t len;
 
-    len = tea_check_integer(T, 2);
-
-    if(tea_is_string(T, 1))
-        src = tea_get_string(T, 1);
+    if(tea_get_top(T) < 3)
+    {
+        src = tea_check_lstring(T, 1, &len);
+        memcpy(dst, src, len);
+        ((char*)dst)[len++] = '\0';
+    }
     else
-        src = cdata_ptr(tea_check_udata(T, 1, CDATA_MT));
+    {
+        len = tea_check_integer(T, 2);
 
-    memcpy(dst, src, len);
+        if(tea_is_string(T, 1))
+            src = tea_get_string(T, 1);
+        else
+            src = cdata_ptr(tea_check_udata(T, 1, CDATA_MT));
+
+        memcpy(dst, src, len);
+    }
 
     tea_push_integer(T, len);
 }
@@ -2353,7 +2375,8 @@ static void ffi_fill(tea_State* T)
     cdata* cd = tea_check_udata(T, 0, CDATA_MT);
     int len = tea_check_integer(T, 1);
     int c = tea_opt_integer(T, 2, 0);
-    memset(cdata_ptr(cd), c, len);
+    void* dst = (cdata_type(cd) == CTYPE_PTR) ? cdata_ptr_ptr(cd) : cdata_ptr(cd);
+    memset(dst, c, len);
 }
 
 static void ffi_errno(tea_State* T)
@@ -2373,12 +2396,13 @@ static const tea_Reg funcs[] = {
     { "cast", ffi_cast, 2, 0 },
     { "typeof", ffi_typeof, 1, 1 },
     { "addressof", ffi_addressof, 1, 0 },
+    { "gc", ffi_gc, 2, 0 },
     { "sizeof", ffi_sizeof, 1, 0 },
     { "offsetof", ffi_offsetof, 2, 0 },
     { "istype", ffi_istype, 2, 0 },
     { "tonumber", ffi_tonumber, 1, 0 },
     { "string", ffi_string, 1, 1 },
-    { "copy", ffi_copy, 3, 0 },
+    { "copy", ffi_copy, 2, 1 },
     { "fill", ffi_fill, 2, 1 },
     { "errno", ffi_errno, 0, 1 },
     { NULL, NULL }
