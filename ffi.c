@@ -499,7 +499,7 @@ static void ctype_tostring(tea_State* T, ctype* ct, teaB_buffer* b)
         {
             teaB_addchar(b, ' ');
             teaB_addstring(b, cstruct_lookup_name(T, ct->rc));
-            tea_pop(T, 1);
+            tea_pop(T, 2);
         }
         break;
     }
