@@ -1302,7 +1302,7 @@ static void ffi_clib_getattr(tea_State* T)
     ctype* ct;
     void* sym;
 
-    tea_get_fieldp(T, TEA_REGISTRY_INDEX, lib);
+    tea_get_udvalue(T, 0, CLIB_CACHE);
     if(tea_get_key(T, -1, name))
         goto done;
 
@@ -2075,9 +2075,6 @@ static void ffi_load(tea_State* T)
     bool global = tea_opt_bool(T, 1, false);
 
     clib* lib = clib_load(T, path, global);
-    
-    tea_new_map(T);
-    tea_set_fieldp(T, TEA_REGISTRY_INDEX, lib);
     
     if(global)
     {

@@ -312,7 +312,12 @@ void* clib_index(tea_State* T, clib* cl, const char* name)
 /* Create a new clib object and push it on the stack */
 static clib* clib_new(tea_State* T)
 {
-    return tea_new_udata(T, sizeof(clib), CLIB_MT);
+    clib* cl = tea_new_udatav(T, sizeof(clib), 1, CLIB_MT);
+
+    tea_new_map(T);
+    tea_set_udvalue(T, -2, CLIB_CACHE);
+
+    return cl;
 }
 
 /* Load a C library */
@@ -336,10 +341,6 @@ void clib_default(tea_State* T)
 {
     clib* cl = clib_new(T);
     cl->handle = CLIB_DEFHANDLE;
-
-    tea_push_pointer(T, cl);
-    tea_new_map(T);
-    tea_set_field(T, TEA_REGISTRY_INDEX);
 }
 
 void clib_tostring(tea_State* T, clib* cl)
