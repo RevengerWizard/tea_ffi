@@ -1,0 +1,18 @@
+import ffi
+
+ffi.cdef(```
+    void* malloc(size_t size);
+    void free(void* ptr);
+```)
+
+function allocate_string(str)
+{
+    const buf = ffi.cast("char*", ffi.C.malloc(str.len + 1))
+
+    ffi.copy(buf, str)
+
+    return ffi.gc(buf, ffi.C.free)
+}
+
+const str = allocate_string("Hello world!")
+print(ffi.string(str))

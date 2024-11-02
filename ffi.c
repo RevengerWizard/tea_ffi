@@ -21,12 +21,9 @@
 #include "helper.h"
 #include "alloca_compat.h"
 
-#define MAX_RECORD_FIELDS   30
-#define MAX_FUNC_ARGS       30
-
-#define CDATA_MT    "cdata"
-#define CTYPE_MT    "ctype"
-#define CLIB_MT     "clib"
+#include "arch.h"
+#include "tea_ffi.h"
+#include "clib.h"
 
 enum
 {
@@ -119,11 +116,6 @@ typedef struct cdata
     struct ctype* ct;
     void* ptr;
 } cdata;
-
-typedef struct clib
-{
-    void* h;
-} clib;
 
 static const char* crecord_registry;
 static const char* carray_registry;
@@ -1302,71 +1294,6 @@ static const tea_Methods ctype_methods[] = {
     { NULL, NULL }
 };
 
-static void clib_load(tea_State* T, const char* path, bool global)
-{
-    clib* lib;
-
-#ifdef _WIN32
-    HMODULE h;
-    if(path)
-    {
-        h = LoadLibraryA(path);
-        if(!h)
-        {
-            DWORD error = GetLastError();
-            char* message;
-            FormatMessageA(
-                FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-                NULL,
-                error,
-                MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-                (LPSTR)&message,
-                0,
-                NULL
-            );
-            tea_push_fstring(T, "LoadLibrary failed: %s", message);
-            LocalFree(message);
-            tea_throw(T);
-            return;
-        }
-    }
-    else
-    {
-        h = GetModuleHandle(NULL);
-    }
-#else
-    void* h;
-    if(path)
-    {
-        h = dlopen(path, RTLD_LAZY | (global ? RTLD_GLOBAL : RTLD_LOCAL));
-        if(!h)
-        {
-            const char* err = dlerror();
-            tea_error(T, err ? err : "dlopen() failed");
-            return;
-        }
-    }
-    else
-    {
-        h = RTLD_DEFAULT;
-    }
-#endif
-
-    lib = tea_new_udata(T, sizeof(clib), CLIB_MT);
-    lib->h = h;
-    
-    tea_new_map(T);
-    tea_set_fieldp(T, TEA_REGISTRY_INDEX, lib);
-    
-    if(global)
-    {
-        tea_get_fieldp(T, TEA_REGISTRY_INDEX, &clib_registry);
-        tea_push_value(T, -2);
-        tea_set_fieldp(T, -2, lib);
-        tea_pop(T, 1);
-    }
-}
-
 static void ffi_clib_getattr(tea_State* T)
 {
     clib* lib = tea_check_udata(T, 0, CLIB_MT);
@@ -1387,18 +1314,7 @@ static void ffi_clib_getattr(tea_State* T)
     tea_pop(T, 2);
     ct = ctype_lookup(T, &match, false);
 
-#ifdef _WIN32
-    sym = (void*)GetProcAddress(lib->h, name);
-#else
-    sym = dlsym(lib->h, name);
-#endif
-
-    if(!sym)
-#ifdef _WIN32
-        tea_error(T, "undefined function '%s' (error: %d)", name, GetLastError());
-#else
-        tea_error(T, "undefined function '%s'", name);
-#endif
+    sym = clib_index(T, lib, name);
 
     cdata_ptr_set(cdata_new(T, ct, NULL), sym);
     tea_push_value(T, -1);
@@ -1411,32 +1327,14 @@ done:
 static void ffi_clib_tostring(tea_State* T)
 {
     clib* lib = tea_check_udata(T, 0, CLIB_MT);
-
-#ifdef _WIN32
-    if(lib->h == GetModuleHandle(NULL))
-        tea_push_literal(T, "library: default");
-    else
-        tea_push_fstring(T, "library: %p", lib->h);
-#else
-    if(lib->h == RTLD_DEFAULT)
-        tea_push_literal(T, "library: default");
-    else
-        tea_push_fstring(T, "library: %p", lib->h);
-#endif
+    clib_tostring(T, lib);
 }
 
 static void ffi_clib_gc(tea_State* T)
 {
     clib* lib = tea_check_udata(T, 0, CLIB_MT);
-    void* h = lib->h;
 
-#ifdef _WIN32
-    if(h != GetModuleHandle(NULL))
-        FreeLibrary(h);
-#else
-    if(h != RTLD_DEFAULT)
-        dlclose(h);
-#endif
+    clib_unload(lib);
 
     tea_push_pointer(T, lib);
     tea_delete_field(T, TEA_REGISTRY_INDEX);
@@ -2174,8 +2072,20 @@ static void ffi_cdef(tea_State* T)
 static void ffi_load(tea_State* T)
 {
     const char* path = tea_check_string(T, 0);
-    bool global = tea_opt_bool(T, 1, 0);
-    clib_load(T, path, global);
+    bool global = tea_opt_bool(T, 1, false);
+
+    clib* lib = clib_load(T, path, global);
+    
+    tea_new_map(T);
+    tea_set_fieldp(T, TEA_REGISTRY_INDEX, lib);
+    
+    if(global)
+    {
+        tea_get_fieldp(T, TEA_REGISTRY_INDEX, &clib_registry);
+        tea_push_value(T, -2);
+        tea_set_fieldp(T, -2, lib);
+        tea_pop(T, 1);
+    }
 }
 
 static void ffi_cnew(tea_State* T)
@@ -2389,6 +2299,38 @@ static void ffi_errno(tea_State* T)
     tea_push_integer(T, cur);
 }
 
+/* Check string against a linear list of matches */
+int cparse_case(const char* str, size_t len, const char* match)
+{
+    size_t len1;
+    int n;
+    for(n = 0; (len1 = (int)*match++); n++, match += len1)
+    {
+        if(len == len1 && !memcmp(match, str, len1))
+        return n;
+    }
+    return -1;
+}
+
+static void ffi__abi(tea_State* T)
+{
+    size_t len;
+    const char* str = tea_check_lstring(T, 0, &len);
+    int b = cparse_case(str, len,
+#if FFI_64
+    "\00564bit"
+#else
+    "\00532bit"
+#endif
+#if FFI_LE
+    "\002le"
+#else
+    "\002be"
+#endif
+    ) >= 0;
+    tea_push_bool(T, b);
+}
+
 static const tea_Reg funcs[] = {
     { "cdef", ffi_cdef, 1, 0 },
     { "load", ffi_load, 1, 1 },
@@ -2405,6 +2347,7 @@ static const tea_Reg funcs[] = {
     { "copy", ffi_copy, 2, 1 },
     { "fill", ffi_fill, 2, 1 },
     { "errno", ffi_errno, 0, 1 },
+    { "abi", ffi__abi, 1, 0 },
     { NULL, NULL }
 };
 
@@ -2439,6 +2382,6 @@ TEA_API void tea_import_ffi(tea_State* T)
 
     tea_create_module(T, "ffi", funcs);
 
-    clib_load(T, NULL, true);
+    clib_default(T);
     tea_set_attr(T, -2, "C");
 }
