@@ -2143,6 +2143,13 @@ static void ffi_offsetof(tea_State* T)
     tea_push_nil(T);
 }
 
+static void ffi_alignof(tea_State* T)
+{
+    ctype* ct = check_ct(T, NULL, false);
+    unsigned short align = ctype_ft(ct)->alignment;
+    tea_push_integer(T, align);
+}
+
 static void ffi_istype(tea_State* T)
 {
     ctype* ct = check_ct(T, NULL, false);
@@ -2338,6 +2345,7 @@ static const tea_Reg funcs[] = {
     { "gc", ffi_gc, 2, 0 },
     { "sizeof", ffi_sizeof, 1, 0 },
     { "offsetof", ffi_offsetof, 2, 0 },
+    { "alignof", ffi_alignof, 1, 0 },
     { "istype", ffi_istype, 2, 0 },
     { "tonumber", ffi_tonumber, 1, 0 },
     { "string", ffi_string, 1, 1 },
