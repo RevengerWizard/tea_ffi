@@ -122,13 +122,13 @@ static void* clib_loadlib(tea_State* T, const char* name, bool global)
     return h;
 }
 
-static void clib_unloadlib(clib* cl)
+static void clib_unloadlib(CLibrary* cl)
 {
     if(cl->handle && cl->handle != CLIB_DEFHANDLE)
         dlclose(cl->handle);
 }
 
-static void* clib_getsym(clib* cl, const char* name)
+static void* clib_getsym(CLibrary* cl, const char* name)
 {
     void* p = dlsym(cl->handle, name);
     return p;
@@ -198,7 +198,7 @@ static void* clib_loadlib(tea_State* T, const char* name, bool global)
     return h;
 }
 
-static void clib_unloadlib(clib* cl)
+static void clib_unloadlib(CLibrary* cl)
 {
     if(cl->handle == CLIB_DEFHANDLE)
     {
@@ -219,7 +219,7 @@ static void clib_unloadlib(clib* cl)
     }
 }
 
-static void* clib_getsym(clib* cl, const char* name)
+static void* clib_getsym(CLibrary* cl, const char* name)
 {
     void* p = NULL;
     if(cl->handle == CLIB_DEFHANDLE)
@@ -278,12 +278,12 @@ static void* clib_loadlib(tea_State* T, const char* name, bool global)
     return NULL;
 }
 
-static void clib_unloadlib(clib* cl)
+static void clib_unloadlib(CLibrary* cl)
 {
     (void)cl;
 }
 
-static void* clib_getsym(clib* cl, const char* name)
+static void* clib_getsym(CLibrary* cl, const char* name)
 {
     (void)cl; (void)name;
     return NULL;
@@ -292,7 +292,7 @@ static void* clib_getsym(clib* cl, const char* name)
 #endif
 
 /* Index a C library by name */
-void* clib_index(tea_State* T, clib* cl, const char* name)
+void* clib_index(tea_State* T, CLibrary* cl, const char* name)
 {
     void* p = clib_getsym(cl, name);
 #if FFI_TARGET_WINDOWS
@@ -310,9 +310,9 @@ void* clib_index(tea_State* T, clib* cl, const char* name)
 }
 
 /* Create a new clib object and push it on the stack */
-static clib* clib_new(tea_State* T)
+static CLibrary* clib_new(tea_State* T)
 {
-    clib* cl = tea_new_udatav(T, sizeof(clib), 1, CLIB_MT);
+    CLibrary* cl = tea_new_udatav(T, sizeof(CLibrary), 1, CLIB_MT);
 
     tea_new_map(T);
     tea_set_udvalue(T, -2, CLIB_CACHE);
@@ -321,16 +321,16 @@ static clib* clib_new(tea_State* T)
 }
 
 /* Load a C library */
-clib* clib_load(tea_State* T, const char* name, bool global)
+CLibrary* clib_load(tea_State* T, const char* name, bool global)
 {
     void* handle = clib_loadlib(T, name, global);
-    clib* cl = clib_new(T);
+    CLibrary* cl = clib_new(T);
     cl->handle = handle;
     return cl;
 }
 
 /* Unload a C library */
-void clib_unload(clib* cl)
+void clib_unload(CLibrary* cl)
 {
     clib_unloadlib(cl);
     cl->handle = NULL;
@@ -339,11 +339,11 @@ void clib_unload(clib* cl)
 /* Create the default C library object */
 void clib_default(tea_State* T)
 {
-    clib* cl = clib_new(T);
+    CLibrary* cl = clib_new(T);
     cl->handle = CLIB_DEFHANDLE;
 }
 
-void clib_tostring(tea_State* T, clib* cl)
+void clib_tostring(tea_State* T, CLibrary* cl)
 {
     if(cl->handle == CLIB_DEFHANDLE)
         tea_push_literal(T, "library: default");

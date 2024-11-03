@@ -1296,7 +1296,7 @@ static const tea_Methods ctype_methods[] = {
 
 static void ffi_clib_getattr(tea_State* T)
 {
-    clib* lib = tea_check_udata(T, 0, CLIB_MT);
+    CLibrary* cl = tea_check_udata(T, 0, CLIB_MT);
     const char* name = tea_check_string(T, 1);
     ctype match = { .type = CTYPE_FUNC };
     ctype* ct;
@@ -1314,7 +1314,7 @@ static void ffi_clib_getattr(tea_State* T)
     tea_pop(T, 2);
     ct = ctype_lookup(T, &match, false);
 
-    sym = clib_index(T, lib, name);
+    sym = clib_index(T, cl, name);
 
     cdata_ptr_set(cdata_new(T, ct, NULL), sym);
     tea_push_value(T, -1);
@@ -1326,17 +1326,17 @@ done:
 
 static void ffi_clib_tostring(tea_State* T)
 {
-    clib* lib = tea_check_udata(T, 0, CLIB_MT);
-    clib_tostring(T, lib);
+    CLibrary* cl = tea_check_udata(T, 0, CLIB_MT);
+    clib_tostring(T, cl);
 }
 
 static void ffi_clib_gc(tea_State* T)
 {
-    clib* lib = tea_check_udata(T, 0, CLIB_MT);
+    CLibrary* cl = tea_check_udata(T, 0, CLIB_MT);
 
-    clib_unload(lib);
+    clib_unload(cl);
 
-    tea_push_pointer(T, lib);
+    tea_push_pointer(T, cl);
     tea_delete_field(T, TEA_REGISTRY_INDEX);
     
     tea_push_nil(T);
@@ -2074,7 +2074,7 @@ static void ffi_load(tea_State* T)
     const char* path = tea_check_string(T, 0);
     bool global = tea_opt_bool(T, 1, false);
 
-    clib* lib = clib_load(T, path, global);
+    CLibrary* lib = clib_load(T, path, global);
     
     if(global)
     {

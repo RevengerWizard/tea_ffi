@@ -5,7 +5,7 @@ CFLAGS = -Wall -O0 -g $(INCLUDE) -DTEA_BUILD_AS_DLL
 LDFLAGS = -shared #-g
 LIBS = -lffi -ltea00
 
-SRC = $(wildcard *.c)
+SRC = $(wildcard src/*.c)
 OBJS = $(SRC:.c=.o)
 
 TARGET = ffi.dll
@@ -22,6 +22,6 @@ $(TARGET): $(OBJS)
 	$(E) "STRIP        $@"
 	$(Q)$(STRIP) $@
 
-%.o: %.c
+src/%.o: src/%.c
 	$(E) "CC           $@"
 	$(Q)$(CC) $(CFLAGS) -c -o $@ $<
