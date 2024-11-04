@@ -6,9 +6,11 @@
 #ifndef _TEA_FFI_H
 #define _TEA_FFI_H
 
+#include <stdbool.h>
+
 #include <ffi.h>
 
-#include <stdbool.h>
+#include <tea.h>
 
 #define MAX_RECORD_FIELDS   30
 #define MAX_FUNC_ARGS       30
@@ -25,5 +27,6 @@ extern const char* ctdef_registry;
 extern const char* clib_registry;
 
 ffi_type* ffi_get_type(size_t size, bool s);
+void ffi_tea_num(tea_State* T, ffi_type* ft, void* ptr, int idx);
 
 #endif

@@ -11,6 +11,7 @@
 #include <ffi.h>
 
 #include <tea.h>
+#include "teax.h"
 
 enum
 {

@@ -19,6 +19,7 @@
 #include "tea_ctype.h"
 #include "tea_cdata.h"
 #include "tea_cparse.h"
+#include "tea_cconv.h"
 
 const char* crecord_registry;
 const char* carray_registry;
@@ -61,335 +62,6 @@ static void ffi_cdata_tostring(tea_State* T)
     __cdata_tostring(T, cd);
 }
 
-#define PUSH_INTEGER(T, type, ptr) \
-    do { \
-        type v; \
-        memcpy(&v, ptr, sizeof(v)); \
-        tea_push_integer(T, v); \
-    } while(0)
-
-#define PUSH_NUMBER(T, type, ptr) \
-    do { \
-        type v; \
-        memcpy(&v, ptr, sizeof(v)); \
-        tea_push_number(T, v); \
-    } while(0)
-
-static void cdata_to_tea(tea_State* T, CType* ct, void* ptr)
-{
-    switch(ct->type) 
-    {
-    case CTYPE_RECORD:
-    case CTYPE_ARRAY:
-    case CTYPE_PTR:
-        cdata_new(T, ct, ptr);
-        return;
-    }
-
-    switch(ct->ft->type) 
-    {
-    case FFI_TYPE_SINT8:
-        PUSH_INTEGER(T, int8_t, ptr);
-        break;
-    case FFI_TYPE_UINT8:
-        PUSH_INTEGER(T, uint8_t, ptr);
-        break;
-    case FFI_TYPE_SINT16:
-        PUSH_INTEGER(T, int16_t, ptr);
-        break;
-    case FFI_TYPE_UINT16:
-        PUSH_INTEGER(T, uint16_t, ptr);
-        break;
-    case FFI_TYPE_SINT32:
-        PUSH_INTEGER(T, int32_t, ptr);
-        break;
-    case FFI_TYPE_UINT32:
-        PUSH_INTEGER(T, uint32_t, ptr);
-        break;
-    case FFI_TYPE_SINT64:
-        PUSH_INTEGER(T, int64_t, ptr);
-        break;
-    case FFI_TYPE_UINT64:
-        PUSH_INTEGER(T, uint64_t, ptr);
-        break;
-    case FFI_TYPE_FLOAT:
-        PUSH_NUMBER(T, float, ptr);
-        break;
-    case FFI_TYPE_DOUBLE:
-        PUSH_NUMBER(T, double, ptr);
-        break;
-    default:
-        break;
-    }
-}
-
-static void cdata_from_tea(tea_State* T, CType* ct, void* ptr, int idx, bool cast);
-
-static tea_Integer from_tea_num_int(tea_State* T, int idx)
-{
-    if(tea_is_bool(T, idx))
-        return tea_get_bool(T, idx);
-    else
-        return tea_check_integer(T, idx);
-}
-
-static tea_Number from_tea_num_num(tea_State* T, int idx)
-{
-    if(tea_is_bool(T, idx))
-        return tea_get_bool(T, idx);
-    else
-        return tea_check_number(T, idx);
-}
-
-static void ft_from_tea_num(tea_State* T, ffi_type* ft, void* ptr, int idx)
-{
-    switch(ft->type) {
-    case FFI_TYPE_SINT8:
-        *(int8_t*)ptr = from_tea_num_int(T, idx);
-        break;
-    case FFI_TYPE_UINT8:
-        *(uint8_t*)ptr = from_tea_num_int(T, idx);
-        break;
-    case FFI_TYPE_SINT16:
-        *(int16_t*)ptr = from_tea_num_int(T, idx);
-        break;
-    case FFI_TYPE_UINT16:
-        *(uint16_t*)ptr = from_tea_num_int(T, idx);
-        break;
-    case FFI_TYPE_SINT32:
-        *(int32_t*)ptr = from_tea_num_int(T, idx);
-        break;
-    case FFI_TYPE_UINT32:
-        *(uint32_t*)ptr = from_tea_num_int(T, idx);
-        break;
-    case FFI_TYPE_SINT64:
-        *(int64_t*)ptr = from_tea_num_int(T, idx);
-        break;
-    case FFI_TYPE_UINT64:
-        *(uint64_t*)ptr = from_tea_num_int(T, idx);
-        break;
-    case FFI_TYPE_FLOAT:
-        *(float*)ptr = from_tea_num_num(T, idx);
-        break;
-    case FFI_TYPE_DOUBLE:
-        *(double*)ptr = from_tea_num_num(T, idx);
-        break;
-    }
-}
-
-static bool cdata_from_tea_num(tea_State* T, CType* ct, void* ptr, int idx, bool cast)
-{
-    if(ct->type == CTYPE_PTR)
-    {
-        if(!cast)
-            return false;
-        *(void**)ptr = (void*)(intptr_t)tea_to_integer(T, idx);
-        return true;
-    }
-
-    if(!ctype_is_num(ct))
-        return false;
-
-    ft_from_tea_num(T, ct->ft, ptr, idx);
-
-    if(ct->type == CTYPE_BOOL)
-        *(int8_t*)ptr = !!*(int8_t*)ptr;
-
-    return true;
-}
-
-static bool cdata_from_tea_cdata_ptr(tea_State* T, CType* ct, void* ptr,
-                CType* from_ct, void* from_ptr, bool cast)
-{
-    if(ct->type == CTYPE_PTR && (cast || ctype_equal(ct->ptr, from_ct)
-            || ctype_ptr_to(ct, CTYPE_VOID) || from_ct->type == CTYPE_VOID))
-    {
-        *(void**)ptr = from_ptr;
-        return true;
-    }
-
-    if(cast && ctype_is_int(ct))
-    {
-        tea_push_integer(T, (intptr_t)from_ptr);
-        cdata_from_tea_num(T, ct, ptr, -1, true);
-        tea_pop(T, 1);
-        return true;
-    }
-
-    return false;
-}
-
-static bool cdata_from_tea_cdata(tea_State* T, CType* ct, void* ptr, int idx, bool cast)
-{
-    CData* cd = (CData*)tea_to_userdata(T, idx);
-
-    switch(cdata_type(cd))
-    {
-    case CTYPE_ARRAY:
-        return cdata_from_tea_cdata_ptr(T, ct, ptr, cd->ct->array->ct, cdata_ptr(cd), cast);
-    case CTYPE_PTR:
-        return cdata_from_tea_cdata_ptr(T, ct, ptr, cd->ct->ptr, cdata_ptr_ptr(cd), cast);
-    case CTYPE_RECORD:
-        if(ct->type == CTYPE_PTR && (cast || ctype_equal(cd->ct, ct->ptr)))
-        {
-            *(void**)ptr = cdata_ptr(cd);
-            return true;
-        }
-
-        if(ctype_equal(cd->ct, ct))
-        {
-            memcpy(ptr, cdata_ptr(cd), ctype_sizeof(ct));
-            return true;
-        }
-        break;
-    default:
-        if(ctype_is_num(cd->ct))
-        {
-            cdata_to_tea(T, cd->ct, cdata_ptr(cd));
-            cdata_from_tea_num(T, ct, ptr, -1, cast);
-            tea_pop(T, 1);
-            return true;
-        }
-        break;
-    }
-
-    return false;
-}
-
-static void cdata_from_tea_list(tea_State* T, CType* ct, void* ptr, int idx, bool cast)
-{
-    int i = 0;
-
-    while(i < ct->array->size)
-    {
-        if(!tea_get_item(T, idx, i))
-        {
-            break;
-        }
-        cdata_from_tea(T, ct->array->ct, ((char*)(ptr)) + ctype_sizeof(ct->array->ct) * i++, -1, cast);
-        tea_pop(T, 1);
-    }
-}
-
-static void cdata_from_tea_map(tea_State* T, CType* ct, void* ptr, int idx, bool cast)
-{
-    int i = 0;
-    while(i < ct->rc->nfield)
-    {
-        CRecordField* field = ct->rc->fields[i++];
-
-        if(tea_get_key(T, idx, field->name))
-        {
-            cdata_from_tea(T, field->ct, ((char*)(ptr)) + field->offset, -1, cast);
-            tea_pop(T, 1);
-        }
-    }
-}
-
-static void cdata_from_tea(tea_State* T, CType* ct, void* ptr, int idx, bool cast)
-{
-    switch(ct->type)
-    {
-    case CTYPE_FUNC:
-    case CTYPE_VOID:
-        tea_error(T, "invalid C type");
-        break;
-    case CTYPE_ARRAY:
-    case CTYPE_RECORD:
-        if(cast)
-            tea_error(T, "invalid C type");
-        break;
-    default:
-        break;
-    }
-
-    switch(tea_get_type(T, idx))
-    {
-    case TEA_TYPE_NIL:
-        if(ct->type == CTYPE_PTR)
-        {
-            *(void**)ptr = NULL;
-            return;
-        }
-        break;
-    case TEA_TYPE_NUMBER:
-    case TEA_TYPE_BOOL:
-        if(cdata_from_tea_num(T, ct, ptr, idx, cast))
-            return;
-        break;
-    case TEA_TYPE_STRING:
-        if(cast || ((ctype_ptr_to(ct, CTYPE_CHAR) || ctype_ptr_to(ct, CTYPE_VOID))
-            && ct->ptr->is_const))
-        {
-            *(const char**)ptr = (const char*)tea_get_string(T, idx);
-            return;
-        }
-
-        if(ct->type == CTYPE_ARRAY && ct->array->ct->type == CTYPE_CHAR)
-        {
-            size_t len;
-            const char* str = tea_get_lstring(T, idx, &len);
-            memcpy(ptr, str, len + 1);
-            return;
-        }
-        break;
-    case TEA_TYPE_USERDATA:
-        if(tea_test_udata(T, idx, CDATA_MT))
-        {
-            if(cdata_from_tea_cdata(T, ct, ptr, idx, cast))
-                return;
-        }
-        else if(ct->type == CTYPE_PTR)
-        {
-            void* ud = tea_to_userdata(T, idx);
-
-            if(cast || ctype_ptr_to(ct, CTYPE_VOID))
-            {
-                *(void**)ptr = ud;
-                return;
-            }
-        }
-        break;
-    case TEA_TYPE_POINTER:
-        if(ct->type == CTYPE_PTR)
-        {
-            *(void**)ptr = (void*)tea_to_pointer(T, idx);
-            return;
-        }
-        break;
-    case TEA_TYPE_LIST:
-        if(ct->type == CTYPE_ARRAY)
-        {
-            cdata_from_tea_list(T, ct, ptr, idx, cast);
-            return;
-        }
-        break;
-    case TEA_TYPE_MAP:
-        if(ct->type == CTYPE_RECORD)
-        {
-            cdata_from_tea_map(T, ct, ptr, idx, cast);
-            return;
-        }
-        break;
-    default:
-        break;
-    }
-
-    if(tea_test_udata(T, idx, CDATA_MT))
-    {
-        CData* cd = tea_to_userdata(T, idx);
-        ctype_tostring(T, cd->ct);
-        ctype_tostring(T, ct);
-        tea_push_fstring(T, "cannot convert '%s' to '%s'", tea_get_string(T, -2), tea_get_string(T, -1));
-    }
-    else
-    {
-        ctype_tostring(T, ct);
-        tea_push_fstring(T, "cannot convert '%s' to '%s'", tea_typeof(T, idx), tea_get_string(T, -1));
-    }
-    tea_arg_error(T, idx, tea_get_string(T, -1));
-}
-
 static void cdata_index_ptr(tea_State* T, CData* cd, CType* ct, bool to)
 {
     void* ptr = (cdata_type(cd) == CTYPE_PTR) ? cdata_ptr_ptr(cd) : cdata_ptr(cd);
@@ -419,7 +91,7 @@ static void cdata_index_ptr(tea_State* T, CData* cd, CType* ct, bool to)
         }
         tea_pop(T, 1);
 
-        cdata_to_tea(T, ct, ((char*)ptr) + ctype_sizeof(ct) * idx);
+        cconv_tea_cdata(T, ct, ((char*)ptr) + ctype_sizeof(ct) * idx);
 
         if(tea_test_udata(T, -1, CDATA_MT))
         {
@@ -432,7 +104,7 @@ static void cdata_index_ptr(tea_State* T, CData* cd, CType* ct, bool to)
     }
     else
     {
-        cdata_from_tea(T, ct, ((char*)ptr) + ctype_sizeof(ct) * idx, 2, false);
+        cconv_cdata_tea(T, ct, ((char*)ptr) + ctype_sizeof(ct) * idx, 2, false);
     }
 }
 
@@ -529,7 +201,7 @@ static void cdata_index_crecord(tea_State* T, CData* cd, CType* ct, bool to)
 
     if(to)
     {
-        cdata_to_tea(T, field->ct, ((char*)(ptr)) + offset);
+        cconv_tea_cdata(T, field->ct, ((char*)(ptr)) + offset);
         if(tea_test_udata(T, -1, CDATA_MT))
         {
             tea_get_fieldp(T, TEA_REGISTRY_INDEX, cd);
@@ -541,7 +213,7 @@ static void cdata_index_crecord(tea_State* T, CData* cd, CType* ct, bool to)
     }
     else
     {
-        cdata_from_tea(T, field->ct, ((char*)(ptr)) + offset, 2, false);
+        cconv_cdata_tea(T, field->ct, ((char*)(ptr)) + offset, 2, false);
     }
 }
 
@@ -608,12 +280,66 @@ static void ffi_cdata_eq(tea_State* T)
 
         break;
     default:
-        cdata_to_tea(T, cd->ct, cdata_ptr(cd));
+        cconv_tea_cdata(T, cd->ct, cdata_ptr(cd));
         eq = tea_equal(T, 1, -1);
         tea_pop(T, 1);
     }
 
     tea_push_bool(T, eq);
+}
+
+static tea_Integer num2int(tea_State* T, int idx)
+{
+    if(tea_is_integer(T, idx))
+        return tea_get_integer(T, idx);
+    else if(tea_is_bool(T, idx))
+        return tea_get_bool(T, idx);
+    else
+        return tea_check_number(T, idx);
+}
+
+static tea_Number num2num(tea_State* T, int idx)
+{
+    if(tea_is_bool(T, idx))
+        return tea_get_bool(T, idx);
+    else
+        return tea_check_number(T, idx);
+}
+
+void ffi_tea_num(tea_State* T, ffi_type* ft, void* ptr, int idx)
+{
+    switch(ft->type) {
+    case FFI_TYPE_SINT8:
+        *(int8_t*)ptr = num2int(T, idx);
+        break;
+    case FFI_TYPE_UINT8:
+        *(uint8_t*)ptr = num2int(T, idx);
+        break;
+    case FFI_TYPE_SINT16:
+        *(int16_t*)ptr = num2int(T, idx);
+        break;
+    case FFI_TYPE_UINT16:
+        *(uint16_t*)ptr = num2int(T, idx);
+        break;
+    case FFI_TYPE_SINT32:
+        *(int32_t*)ptr = num2int(T, idx);
+        break;
+    case FFI_TYPE_UINT32:
+        *(uint32_t*)ptr = num2int(T, idx);
+        break;
+    case FFI_TYPE_SINT64:
+        *(int64_t*)ptr = num2int(T, idx);
+        break;
+    case FFI_TYPE_UINT64:
+        *(uint64_t*)ptr = num2int(T, idx);
+        break;
+    case FFI_TYPE_FLOAT:
+        *(float*)ptr = num2num(T, idx);
+        break;
+    case FFI_TYPE_DOUBLE:
+        *(double*)ptr = num2num(T, idx);
+        break;
+    }
 }
 
 static ffi_type* to_vararg(tea_State* T, int idx)
@@ -623,7 +349,8 @@ static ffi_type* to_vararg(tea_State* T, int idx)
     switch(tea_get_type(T, idx))
     {
     case TEA_TYPE_BOOL:
-        return &ffi_type_sint; /* cannot be less than the size of int, due to limited in libffi */
+        /* Cannot be less than the size of int, due to limitations in libffi */
+        return &ffi_type_sint;
     case TEA_TYPE_NUMBER:
         if(tea_is_integer(T, idx))
             return ffi_get_type(sizeof(tea_Integer), false);
@@ -681,7 +408,7 @@ static void ffi_cdata_call(tea_State* T)
     {
         args[i] = ctype_ft(func->args[i]);
         values[i] = alloca(args[i]->size);
-        cdata_from_tea(T, func->args[i], values[i], i + 1, false);
+        cconv_cdata_tea(T, func->args[i], values[i], i + 1, false);
     }
 
     if(func->va)
@@ -700,7 +427,7 @@ static void ffi_cdata_call(tea_State* T)
             {
             case TEA_TYPE_BOOL:
             case TEA_TYPE_NUMBER:
-                ft_from_tea_num(T, args[i], values[i], i + 1);
+                ffi_tea_num(T, args[i], values[i], i + 1);
                 break;
             case TEA_TYPE_NIL:
                 *(void**)values[i] = NULL;
@@ -721,8 +448,8 @@ static void ffi_cdata_call(tea_State* T)
                     *(void**)values[i] = cdata_ptr_ptr(cd);
                 else
                 {
-                    cdata_to_tea(T, cd->ct, cdata_ptr(cd));
-                    ft_from_tea_num(T, args[i], values[i], -1);
+                    cconv_tea_cdata(T, cd->ct, cdata_ptr(cd));
+                    ffi_tea_num(T, args[i], values[i], -1);
                     tea_pop(T, 1);
                 }
                 break;
@@ -762,7 +489,7 @@ static void ffi_cdata_call(tea_State* T)
 
         ffi_call(&cif, FFI_FN(sym), rvalue, values);
 
-        cdata_to_tea(T, rtype, rvalue);
+        cconv_tea_cdata(T, rtype, rvalue);
         return;
     }
 
@@ -912,7 +639,7 @@ static void ffi_cnew(tea_State* T)
 
     if(ninit == 1)
     {
-        cdata_from_tea(T, cd->ct, cdata_ptr(cd), idx - 1, false);
+        cconv_cdata_tea(T, cd->ct, cdata_ptr(cd), idx - 1, false);
     }
     else if(ninit != 0)
     {
@@ -925,7 +652,7 @@ static void ffi_cast(tea_State* T)
 {
     CType* ct = cparse_single(T, NULL, false);
     CData* cd = cdata_new(T, ct, NULL);
-    cdata_from_tea(T, ct, cdata_ptr(cd), 1, true);
+    cconv_cdata_tea(T, ct, cdata_ptr(cd), 1, true);
 }
 
 static void ffi_sizeof(tea_State* T)
@@ -1000,7 +727,7 @@ static void ffi_tonumber(tea_State* T)
     CType* ct = cd->ct;
 
     if(ct->type < CTYPE_VOID)
-        cdata_to_tea(T, ct, cdata_ptr(cd));
+        cconv_tea_cdata(T, ct, cdata_ptr(cd));
     else
         tea_push_nil(T);
 }
