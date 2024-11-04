@@ -11,7 +11,10 @@ tea_ffi is a portable C FFI for [Teascript] based on [libffi] and an API design 
 
 It aims to be the standard FFI module interface to C and other future Teascript implementations.
 
-This project was inspired by [cffi-lua] and [lua-ffi].
+This project was inspired by:
+- LuaJIT [FFI](https://luajit.org/ext_ffi_api.html)
+- [cffi-lua]
+- [lua-ffi]
 
 ## Example
 
