@@ -1,3 +1,9 @@
+/*
+** Teascript C API extensions
+** teax.c
+*/
+
+#include <math.h>
 #include <string.h>
 
 #include "teax.h"
@@ -97,4 +103,33 @@ void teaB_pushresult(teaB_buffer* B)
     emptybuffer(B);
     tea_concat(B->T, B->lvl);
     B->lvl = 1;
+}
+
+/* Other C API extensions */
+
+bool tea_is_integer(tea_State* T, int idx)
+{
+    double number;
+
+    if(!tea_is_number(T, idx))
+        return false;
+
+    number = tea_to_number(T, idx);
+
+    return floor(number) == number;
+}
+
+void tea_get_fieldp(tea_State* T, int idx, void* p)
+{
+    tea_push_pointer(T, p);
+    tea_get_field(T, idx);
+}
+
+void tea_set_fieldp(tea_State* T, int idx, void* p)
+{
+    idx = tea_absindex(T, idx);
+    tea_push_pointer(T, p);
+    tea_push_value(T, -2);
+    tea_set_field(T, idx);
+    tea_pop(T, 1);
 }

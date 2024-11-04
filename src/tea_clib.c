@@ -1,5 +1,6 @@
 /*
-** clib.c
+** FFI C library loader
+** tea_clib.c
 */
 
 #include <tea.h>
@@ -7,7 +8,8 @@
 #include "arch.h"
 
 #include "tea_ffi.h"
-#include "clib.h"
+#include "tea_clib.h"
+#include "teax.h"
 
 #if FFI_TARGET_DLOPEN
 
@@ -310,12 +312,20 @@ void* clib_index(tea_State* T, CLibrary* cl, const char* name)
 }
 
 /* Create a new clib object and push it on the stack */
-static CLibrary* clib_new(tea_State* T)
+static CLibrary* clib_new(tea_State* T, bool global)
 {
     CLibrary* cl = tea_new_udatav(T, sizeof(CLibrary), 1, CLIB_MT);
 
     tea_new_map(T);
     tea_set_udvalue(T, -2, CLIB_CACHE);
+
+    if(global)
+    {
+        tea_get_fieldp(T, TEA_REGISTRY_INDEX, &clib_registry);
+        tea_push_value(T, -2);
+        tea_set_fieldp(T, -2, cl);
+        tea_pop(T, 1);
+    }
 
     return cl;
 }
@@ -324,7 +334,7 @@ static CLibrary* clib_new(tea_State* T)
 CLibrary* clib_load(tea_State* T, const char* name, bool global)
 {
     void* handle = clib_loadlib(T, name, global);
-    CLibrary* cl = clib_new(T);
+    CLibrary* cl = clib_new(T, global);
     cl->handle = handle;
     return cl;
 }
@@ -339,7 +349,7 @@ void clib_unload(CLibrary* cl)
 /* Create the default C library object */
 void clib_default(tea_State* T)
 {
-    CLibrary* cl = clib_new(T);
+    CLibrary* cl = clib_new(T, true);
     cl->handle = CLIB_DEFHANDLE;
 }
 

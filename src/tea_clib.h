@@ -1,6 +1,10 @@
 /*
-** clib.h
+** FFI C library loader
+** tea_clib.h
 */
+
+#ifndef _TEA_CLIB_H
+#define _TEA_CLIB_H
 
 #include <tea.h>
 
@@ -16,3 +20,5 @@ CLibrary* clib_load(tea_State* T, const char* name, bool global);
 void clib_unload(CLibrary* cl);
 void clib_default(tea_State* T);
 void clib_tostring(tea_State* T, CLibrary* cl);
+
+#endif
