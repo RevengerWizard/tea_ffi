@@ -1,0 +1,47 @@
+import ffi
+
+if(ffi.abi("be"))
+{
+    assert(not ffi.abi("le"))
+}
+else
+{
+    assert(ffi.abi("le"))
+    assert(not ffi.abi("be"))
+}
+
+if(ffi.abi("64bit"))
+{
+    assert(ffi.sizeof("void*") == 8)
+}
+else if(ffi.abi("32bit"))
+{
+    assert(ffi.sizeof("void*") == 4)
+}
+else
+{
+    error("?")
+}
+
+assert(ffi.sizeof("char") == 1)
+assert(ffi.sizeof("short") == 2)
+
+ffi.cdef(```
+    union foo {
+        struct { uint8_t a; uint8_t b; };
+        uint16_t v;
+    };
+```)
+
+const x = ffi.cnew("union foo")
+x.a = 0xAA
+x.b = 0xFF
+
+if(ffi.abi("be"))
+{
+    assert(x.v == 0xAAFF)
+}
+else
+{
+    assert(x.v == 0xFFAA)
+}
