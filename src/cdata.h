@@ -8,7 +8,7 @@
 
 #include <tea.h>
 
-#include "tea_ctype.h"
+#include "ctype.h"
 
 CData* cdata_new(tea_State* T, CType* ct, void* ptr);
 void* cdata_ptr_ptr(CData* cd);

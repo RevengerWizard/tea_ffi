@@ -8,8 +8,8 @@
 #include <ffi.h>
 
 #include "tea_ffi.h"
-#include "tea_cdata.h"
-#include "tea_cconv.h"
+#include "cdata.h"
+#include "cconv.h"
 
 #define PUSH_INTEGER(T, type, ptr) \
     do { \

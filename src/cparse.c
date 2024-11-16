@@ -10,8 +10,8 @@
 #include "teax.h"
 
 #include "tea_ffi.h"
-#include "tea_ctype.h"
-#include "tea_cparse.h"
+#include "ctype.h"
+#include "cparse.h"
 
 static void cparse_expected_error(tea_State* T, int tok, const char* s)
 {
@@ -495,7 +495,7 @@ static int cparse_basetype(tea_State* T, int tok, CType* ct)
     return tok;
 }
 
-static int cparse_function(tea_State* T, int tok, CType* rtype)
+static void cparse_function(tea_State* T, int tok, CType* rtype)
 {
     CType args[MAX_FUNC_ARGS] = {0};
     CFunc *func;
@@ -513,7 +513,7 @@ static int cparse_function(tea_State* T, int tok, CType* rtype)
     tea_push_value(T, -2);
     if(tea_get_field(T, -2))
     {
-        return tea_error(T, "%d:redefinition of function '%s'", yyget_lineno(), tea_to_string(T, -3));
+        tea_error(T, "%d:redefinition of function '%s'", yyget_lineno(), tea_to_string(T, -3));
     }
 
     tea_pop(T, 1);
@@ -593,8 +593,6 @@ static int cparse_function(tea_State* T, int tok, CType* rtype)
     tea_push_pointer(T, func);
     tea_set_field(T, -3);
     tea_pop(T, 2);
-
-    return 0;
 }
 
 CType* cparse_single(tea_State* T, bool* va, bool keep)

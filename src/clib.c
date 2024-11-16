@@ -8,7 +8,7 @@
 #include "arch.h"
 
 #include "tea_ffi.h"
-#include "tea_clib.h"
+#include "clib.h"
 #include "teax.h"
 
 #if FFI_TARGET_DLOPEN

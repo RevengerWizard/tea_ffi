@@ -7,7 +7,7 @@
 
 #include "tea_ffi.h"
 #include "teax.h"
-#include "tea_cdata.h"
+#include "cdata.h"
 
 CData* cdata_new(tea_State* T, CType* ct, void* ptr)
 {

@@ -8,7 +8,7 @@
 
 #include <tea.h>
 
-#include "tea_ctype.h"
+#include "ctype.h"
 
 CType* cparse_single(tea_State* T, bool* va, bool keep);
 void cparse_decl(tea_State* T, const char* p, size_t len);

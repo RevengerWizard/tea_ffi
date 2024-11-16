@@ -15,11 +15,11 @@
 
 #include "arch.h"
 #include "tea_ffi.h"
-#include "tea_clib.h"
-#include "tea_ctype.h"
-#include "tea_cdata.h"
-#include "tea_cparse.h"
-#include "tea_cconv.h"
+#include "clib.h"
+#include "ctype.h"
+#include "cdata.h"
+#include "cparse.h"
+#include "cconv.h"
 
 const char* crecord_registry;
 const char* carray_registry;

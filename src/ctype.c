@@ -7,7 +7,7 @@
 
 #include "teax.h"
 #include "tea_ffi.h"
-#include "tea_ctype.h"
+#include "ctype.h"
 
 CArray* carray_lookup(tea_State* T, size_t size, CType* ct)
 {
